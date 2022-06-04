@@ -82,7 +82,9 @@ class DataLoader:
 
     def build_training_dataset(self):
         # Tensor of all the paths to the images
+        # https://stackoverflow.com/questions/52582275/tf-data-with-multiple-inputs-outputs-in-keras
         self.training_dataset = tf.data.Dataset.from_tensor_slices(self.training_filenames)
+        # self.training_dataset = tf.data.Dataset.from_tensor_slices({'input_RGB': self.training_filenames, 'input_x': self.training_filenames})
 
         # If data augmentation
         if self.augment is True:
@@ -96,6 +98,8 @@ class DataLoader:
             ).map(
             lambda image, label: (tf.image.random_flip_up_down(image), label)
             ).repeat(3)
+
+            ### add blur augmentation
             
             self.length_training_dataset = len(self.training_filenames) * 3
             print(f"Training on {self.length_training_dataset} images")
@@ -363,6 +367,8 @@ if __name__ == '__main__':
     parser.add_argument('--model-dir', type=str, default=os.environ['SM_MODEL_DIR'])
     parser.add_argument('--training', type=str, default=os.environ['SM_CHANNEL_TRAINING'])
 
+    parser.add_argument('--output_type', type=str, default='multiclass')
+
     args, _ = parser.parse_known_args()
 
     os.environ["WANDB_API_KEY"] = args.wandb_key   # "6607ed7a49b452c2f3494ce60f9514f6c9e3b4e6"
@@ -420,18 +426,20 @@ if __name__ == '__main__':
     
     pre_trained_model = args.model
 
+    output_type = args.output_type
+
     #default s3_checkpoint definition
     s3_chkpt_dir = s3_chkpt_base_dir + "/" + job_name
     
     #testing_s3_spot_restart_functionality
 #     s3_chkpt_dir = "ckpt/pc-tf-custom-container-2021-04-20-05-19-50-592"
 
-    def define_model(numclasses, input_shape, starting_checkpoint=None, lcl_chkpt_dir=None,s3_chkpt_dir=s3_chkpt_dir):
+    def define_model(numclasses, xbands_input_shape, output_type, starting_checkpoint=None, lcl_chkpt_dir=None,s3_chkpt_dir=s3_chkpt_dir):
         
         print(f"Using Pre-trained {pre_trained_model} model")
         
         # parameters for CNN
-        input_tensor = Input(shape=input_shape)
+        input_tensor = Input(shape=xbands_input_shape, name='input_x')
 
         # introduce a additional layer to get from bands to 3 input channels
         input_tensor = Conv2D(3, (1, 1))(input_tensor)
@@ -444,6 +452,28 @@ if __name__ == '__main__':
             base_model = keras.applications.ResNet50(include_top=False,
                                                      weights=None,
                                                      input_tensor=input_tensor)
+
+            # RGB_base_model = keras.applications.ResNet50(include_top=False,
+            #                                                   weights='imagenet',
+            #                                                   input_shape=(100, 100, 3))
+            
+            # xbands_base_model = keras.applications.ResNet50(include_top=False,
+            #                                          weights=None,
+            #                                          input_tensor=input_tensor)  #Ideally, this would be a resnet50 trained on the extra bands
+
+            # RGB_base_model.layers[0]._name = 'input_RGB'
+
+            # for layer in xbands_base_model.layers :
+            #     layer._name = layer.name + str('_x')
+
+            # premerge_RGB_model =  Model(inputs=RGB_base_model.input, outputs=RGB_base_model.get_layer('conv2_block3_out').output)
+            # premerge_xbands_model = Model(inputs=xbands_base_model.input, outputs=xbands_base_model.get_layer('conv2_block3_out_x').output)
+            # merged_features = Add()([premerge_RGB_model.output, premerge_xbands_model.output])
+            # premerge_model = Model(inputs= [premerge_RGB_model.input, premerge_xbands_model.input],outputs = merged_features)
+            # postmerge_model = Model(inputs = xbands_base_model.get_layer('conv3_block1_1_conv_x').input, outputs= xbands_base_model.output)
+            # full_output = postmerge_model(premerge_model.output)
+            # full_model = Model(inputs= [premerge_RGB_model.input, premerge_xbands_model.input], outputs= full_output)
+                                                     
         if pre_trained_model == "efficientnetb0":
             
             base_model_pre_trained = keras.applications.EfficientNetB0(include_top=False,
@@ -464,16 +494,23 @@ if __name__ == '__main__':
 
         # add a global spatial average pooling layer
         top_model = base_model.output
+        # top_model = full_model.output
         top_model = GlobalAveragePooling2D()(top_model)
 
         # let's add a fully-connected layer
         top_model = Dense(2048, activation='relu')(top_model)
         top_model = Dense(2048, activation='relu')(top_model)
         # and a logistic layer
-        predictions = Dense(numclasses, activation='softmax')(top_model)
+        if output_type == 'multilabel':
+            predictions = Dense(numclasses, activation='softmax')(top_model)
+        elif output_type == 'multiclass':
+            predictions = Dense(numclasses + 1, activation='softmax')(top_model)
+        else:
+            raise ValueError(f'output_type is not multilabel or multiclass but {output_type}')
 
         # this is the model we will train
-        model = Model(inputs=base_model.input, outputs=predictions)
+        # model = Model(inputs=base_model.input, outputs=predictions)
+        model = Model(inputs=full_model.input, outputs=predictions)
 #         model.summary()
 #         last_chkpt_path = lcl_chkpt_dir + 'last_chkpt.h5'
         
@@ -609,10 +646,17 @@ if __name__ == '__main__':
     #                       )
     # else:
     #     print("Running on CPU")
-    model,start_epoch = define_model(numclasses, input_shape, starting_checkpoint, lcl_chkpt_dir)
+    model,start_epoch = define_model(numclasses, input_shape, output_type, starting_checkpoint, lcl_chkpt_dir)
+
+    if output_type == 'multilabel':
+        model_loss = BinaryCrossentropy()
+    elif output_type == 'multiclass':
+        model_loss = CategoricalCrossentropy()
+    else:
+        raise ValueError(f'output type must be multilabel or multiclass, not {output_type}')
 
 
-    model.compile(loss=BinaryCrossentropy(),
+    model.compile(loss=model_loss,
                   # https://www.tensorflow.org/addons/api_docs/python/tfa/losses/SigmoidFocalCrossEntropy
                   optimizer=keras.optimizers.Adam(lr),
                   metrics=[tf.metrics.BinaryAccuracy(name='accuracy'),
