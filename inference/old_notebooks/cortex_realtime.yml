@@ -1,0 +1,16 @@
+- name: cb-feature-detection
+  kind: RealtimeAPI
+  handler:
+    type: python
+    path: inference_predict_cortex.py
+    config:
+      model_url: s3://canopy-production-ml/inference/model_files/model-best.h5
+      weights_url: s3://canopy-production ml/inference/model_files/model_weights_best.h5
+      file_dir: s3://canopy-production-ml/full_congo_basin/02.17.21_CB_GEE_Pull/
+      job_name: predict_test
+      # mode: cortex
+      device: gpu
+    image: quay.io/cortexlabs/python-handler-gpu:0.34.0-cuda10.2-cudnn8 
+  compute:
+    gpu: 1  # GPU request per replica. One unit of GPU corresponds to one virtual GPU (default: 0)
+  

@@ -1,0 +1,13 @@
+- name: drc-feature-detection-ISL-2021
+  kind: BatchAPI
+  handler:
+    type: python
+    path: inference_predict_cortex_2.py
+    config:
+      model_url: s3://canopy-production-ml/inference/model_files/model-best.h5
+      weights_url: s3://canopy-production ml/inference/model_files/model_weights_best.h5
+      source_crs: 4326
+      job_name: predict_ISL_2021
+      type: batch
+      timestamp: none
+  

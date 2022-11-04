@@ -18,9 +18,27 @@ import random
 # from save_checkpoint_callback_custom import SaveCheckpoints
 # import wandb
 # from wandb.keras import WandbCallback
+from rasterio.windows import Window
 from rasterio.session import AWSSession
 
 class TestGenerator:
+    """
+    Class for evaluating tensorflow models
+    Arguments:
+    training_dir: The directory (either local or on S3) that contains the images that will be used for evaluation
+    label_file_path_test: The location of your label file for your test data
+    bucket_name: Name of the S3 bucket that contains your test data (only use if file_mode is "s3")
+    label_mapping_path: Location of the json file that maps the column numbers in your label file to label names
+    data_extension_type: The file extension name of your data
+    bands: A list of the image bands the model uses (default is all of them)
+    file_mode: "s3" if your data is on S3; "file" if your data is local
+    test_data_shape: The shape of your data
+    test_data_batch_size: Batch size
+    enable_data_prefetch: Whether or not to enable prefetching data -- see "build_testing_dataset" method for more information
+    data_prefetch_size: Size of the data prefetch, assuming you're using prefetch
+    num_parallel_calls: The number of parallel calls to use while evaluating the model
+    output_shape: The shape of your model's output
+    """
     def __init__(self, 
                  training_dir = "./fsx",
 label_file_path_test="labels_test_set.csv",
@@ -95,55 +113,104 @@ label_file_path_test="labels_test_set.csv",
         if self.enable_data_prefetch:
             self.test_dataset = self.test_dataset.prefetch(self.data_prefetch_size)
 
-    def read_image(self, path_img):
+    def _rast_read_chip(self, path_img, bands):
+        ### Should be the same as the function used when training the model ###
         
-        if self.file_mode == "s3":
+        with rasterio.open(path_img) as src:
+            chip = src.read(bands, window=Window(0, 0, 100, 100))
+        
+        return chip
+    
+    def read_image(self, path_img):
+        ### Should be the same as the function used when training the model ###
+
+        path_to_img = self.local_path_train + "/" + path_img.numpy().decode()
+        
+        if 18 in self.bands:
             
-            print("please use 'file' for the file mode. s3 not supported")
+            #create copy of bands list, remove ndvi band from copy 
+            bands_copy = self.bands.copy()
+            bands_copy.remove(18)
+            train_img_no_ndvi = self._rast_read_chip(path_to_img, bands_copy)
+            #normalize non_ndvi and ndvi bands separately, then combine as a single tensor (numpy) array
+            train_img_no_ndvi = tf.image.convert_image_dtype(train_img_no_ndvi, tf.float32)
+            ndvi_band = rasterio.open(path_to_img).read(18)
+            train_img_ndvi = tf.image.convert_image_dtype(ndvi_band, tf.float32)
+            train_img = tf.concat([train_img_no_ndvi,[train_img_ndvi]],axis=0)
+            train_img = tf.transpose(train_img,perm=[1, 2, 0])
+
+        elif 13 in self.bands:
             
-#             output_session = boto3.Session()
-#             aws_session = AWSSession(output_session)
-#             rasterio_env = rasterio.Env(
-#                 session=aws_session,
-#                 GDAL_DISABLE_READDIR_ON_OPEN='NO',
-#                 CPL_VSIL_CURL_USE_HEAD='NO',
-#                 GDAL_GEOREF_SOURCES='INTERNAL',
-#                 GDAL_TIFF_INTERNAL_MASK='NO'
-#             )
-#             with rasterio_env as env:
-#                 path_to_s3_img = "s3://" + self.bucket_name + "/" + path_img.numpy().decode()
-#                 with rasterio.open(path_to_s3_img, mode='r', sharing=False, GEOREF_SOURCES='INTERNAL') as src:
-#                     if self.bands == ['all']:
-#                         # Need to transpose the image to have the channels last and not first as rasterio read the image
-#                         # The input for the model is width*height*channels
-#                         train_img = np.transpose(src.read(), (1, 2, 0))
-#                     else:
-#                         train_img = np.transpose(src.read(self.bands), (1, 2, 0))
+            #create copy of bands list, remove ndvi band from copy 
+            bands_copy = self.bands.copy()
+            bands_copy.remove(13)
+            train_img_no_nbr = self._rast_read_chip(path_to_img, bands_copy)
+            #normalize non_ndvi and ndvi bands separately, then combine as a single tensor (numpy) array
+            train_img_no_nbr = tf.image.convert_image_dtype(train_img_no_nbr, tf.float32)
+            nbr_band = self._rast_read_chip(path_to_img, 13)
+            train_img_nbr = tf.image.convert_image_dtype(nbr_band, tf.float32)
+            train_img = tf.concat([train_img_no_nbr,[train_img_nbr]],axis=0)
+            train_img = tf.transpose(train_img,perm=[1, 2, 0])
+        
+        else:
+            
+            train_img = self._rast_read_chip(path_to_img, self.bands)
+            train_img = np.transpose(train_img, (1, 2, 0))
+            # Normalize image
+            train_img = tf.image.convert_image_dtype(train_img, tf.float32)
+            
+        return train_img 
+
+
+#     def read_image(self, path_img):
+        
+#         if self.file_mode == "s3":
+            
+#             print("please use 'file' for the file mode. s3 not supported")
+            
+# #             output_session = boto3.Session()
+# #             aws_session = AWSSession(output_session)
+# #             rasterio_env = rasterio.Env(
+# #                 session=aws_session,
+# #                 GDAL_DISABLE_READDIR_ON_OPEN='NO',
+# #                 CPL_VSIL_CURL_USE_HEAD='NO',
+# #                 GDAL_GEOREF_SOURCES='INTERNAL',
+# #                 GDAL_TIFF_INTERNAL_MASK='NO'
+# #             )
+# #             with rasterio_env as env:
+# #                 path_to_s3_img = "s3://" + self.bucket_name + "/" + path_img.numpy().decode()
+# #                 with rasterio.open(path_to_s3_img, mode='r', sharing=False, GEOREF_SOURCES='INTERNAL') as src:
+# #                     if self.bands == ['all']:
+# #                         # Need to transpose the image to have the channels last and not first as rasterio read the image
+# #                         # The input for the model is width*height*channels
+# #                         train_img = np.transpose(src.read(), (1, 2, 0))
+# #                     else:
+# #                         train_img = np.transpose(src.read(self.bands), (1, 2, 0))
                         
-        if self.file_mode == "file":
+#         if self.file_mode == "file":
             
-            path_to_img = self.local_path_train + "/" + path_img.numpy().decode()
+#             path_to_img = self.local_path_train + "/" + path_img.numpy().decode()
             
-            if 18 in self.bands:
+#             if 18 in self.bands:
 
-                #create copy of bands list, remove ndvi band from copy 
-                bands_copy = self.bands.copy()
-                bands_copy.remove(18)
-                train_img_no_ndvi = rasterio.open(path_to_img).read(bands_copy)
-                #normalize non_ndvi and ndvi bands separately, then combine as a single tensor (numpy) array
-                train_img_no_ndvi = tf.image.convert_image_dtype(train_img_no_ndvi, tf.float32)
-                ndvi_band = rasterio.open(path_to_img).read(18)
-                train_img_ndvi = tf.image.convert_image_dtype(ndvi_band, tf.float32)
-                train_img = tf.concat([train_img_no_ndvi,[train_img_ndvi]],axis=0)
-                train_img = tf.transpose(train_img,perm=[1, 2, 0])
+#                 #create copy of bands list, remove ndvi band from copy 
+#                 bands_copy = self.bands.copy()
+#                 bands_copy.remove(18)
+#                 train_img_no_ndvi = rasterio.open(path_to_img).read(bands_copy)
+#                 #normalize non_ndvi and ndvi bands separately, then combine as a single tensor (numpy) array
+#                 train_img_no_ndvi = tf.image.convert_image_dtype(train_img_no_ndvi, tf.float32)
+#                 ndvi_band = rasterio.open(path_to_img).read(18)
+#                 train_img_ndvi = tf.image.convert_image_dtype(ndvi_band, tf.float32)
+#                 train_img = tf.concat([train_img_no_ndvi,[train_img_ndvi]],axis=0)
+#                 train_img = tf.transpose(train_img,perm=[1, 2, 0])
 
-            else:
+#             else:
 
-                train_img = np.transpose(rasterio.open(path_to_img).read(self.bands), (1, 2, 0))
-                # Normalize image
-                train_img = tf.image.convert_image_dtype(train_img, tf.float32)
+#                 train_img = np.transpose(rasterio.open(path_to_img).read(self.bands), (1, 2, 0))
+#                 # Normalize image
+#                 train_img = tf.image.convert_image_dtype(train_img, tf.float32)
 
-            return train_img
+#             return train_img
 
     def get_label_from_csv(self, path_img):
         # testing if path in the test csv file or in the val one
