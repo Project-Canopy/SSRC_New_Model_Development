@@ -232,6 +232,6 @@ Suggested future directions:
 
 <br />
 
-## <u>analytics</u>
+## <u>display</u>
  <br />
 Description: Code used to display results online (no new code compared to the previous model so everything is in old_files)
