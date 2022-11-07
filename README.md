@@ -4,6 +4,10 @@ This repository contains the code used to train a new model detecting the presen
 
 The model was based on the one developed in [CB Feature Detection](https://github.com/Project-Canopy/cb_feature_detection). The previous model was trained specifically for logging roads (ISL), while this model is for slash-and-burn (SAB). The notebooks and files pertaining to the previous model can be found in the "old_notebooks" or "old_files" folders within each directory.
 
+The final model files can be found on S3 here: s3://canopy-production-ml/inference/model_files/ (currently in glacier)
+* `best_SAB_model.h5` and `best_SAB_weights.h5` are the SAB model
+* `model-best.h5` and `model_weights_best.h5` are the ISL model
+
 This ReadMe contains general information on each directory in this repository, in rough order of when the code contained within those directories should be run.
 
 Please contact David Nagy (davidanagy@gmail.com) or Misha Lepetic (misha@projectcanopy.org) with any questions.
@@ -63,7 +67,8 @@ Requirements:
 
 Assets:
 
-* All CSV files in this folder are label files for training, validation, and test data. The "v2" train, val, and test files were used to train and evaluate the final model.
+* All CSV files in this folder are label files for training, validation, and test data. The "SAB" files are the one used to train and evaluate the final model.
+* The files in `deprecated_label_files` were made in order to train a model on multiple deforestation drivers (an effort that was eventually abandoned).
 
 <br />
 

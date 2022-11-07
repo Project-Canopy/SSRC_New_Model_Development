@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import rasterio
+from rasterio.windows import Window
 import tensorflow as tf
 
 
@@ -15,7 +16,7 @@ class DataLoader:
                  augment=False,
                  enable_shuffle=False,
                  training_data_shuffle_buffer_size=1000,
-                 training_data_batch_size=20,
+                 training_data_batch_size=32,
                  enable_data_prefetch=False,
                  data_prefetch_size=tf.data.experimental.AUTOTUNE,
                  num_parallel_calls=tf.data.AUTOTUNE,
@@ -196,13 +197,13 @@ class DataLoader:
             # path_img is a tf.string and needs to be converted into a string using .numpy().decode()
             id = int(self.labels_file_train[self.labels_file_train.paths == path_img.numpy().decode()].index.values[0])
             # The list of labels (e.g [0,1,0,0,0,0,0,0,0,0] is grabbed from the csv file on the row where the s3 path is
-            label = self.labels_file_train.drop('paths', 1).iloc[int(id)].to_list()
+            label = self.labels_file_train.drop('paths', axis=1).iloc[int(id)].to_list()
         else:
             ### Validation csv
             # path_img is a tf.string and needs to be converted into a string using .numpy().decode()
             id = int(self.labels_file_val[self.labels_file_val.paths == path_img.numpy().decode()].index.values[0])
             # The list of labels (e.g [0,1,0,0,0,0,0,0,0,0] is grabbed from the csv file on the row where the s3 path is
-            label = self.labels_file_val.drop('paths', 1).iloc[int(id)].to_list()
+            label = self.labels_file_val.drop('paths', axis=1).iloc[int(id)].to_list()
         return label
 
     # Function used in the map() and returns the image and label corresponding to the file_path input
