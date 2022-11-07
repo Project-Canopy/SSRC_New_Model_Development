@@ -1,13 +1,12 @@
 # Project Canopy - DRC slash-and-burn detection model documentation
 
-This repository contains the code used to train a new model detecting the presence of slash-and-burn agriculture in Sentinel-2 satellite images of the Congo Basin.
+This repository contains the code used to train a new model detecting the presence of slash-and-burn agriculture in Sentinel-2 satellite images of the Congo Basin. This code covers every step in the process of training the model, from downloading the satellite imagery to post-processing.
 
-The model was based on the one developed in [CB Feature Detection](https://github.com/Project-Canopy/cb_feature_detection). Each directory contains an "old_notebooks" or "old_files"
-folder, within which you can find the notebooks and files relevant to that project that the current notebooks were based on.
+The model was based on the one developed in [CB Feature Detection](https://github.com/Project-Canopy/cb_feature_detection). The previous model was trained specifically for logging roads (ISL), while this model is for slash-and-burn (SAB). The notebooks and files pertaining to the previous model can be found in the "old_notebooks" or "old_files" folders within each directory.
 
 This ReadMe contains general information on each directory in this repository, in rough order of when the code contained within those directories should be run.
 
-Please contact David Nagy (davidanagy@gmail.com) with any questions.
+Please contact David Nagy (davidanagy@gmail.com) or Misha Lepetic (misha@projectcanopy.org) with any questions.
 
 <br />
 
