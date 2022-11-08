@@ -14,6 +14,38 @@ Please contact David Nagy (davidanagy@gmail.com) or Misha Lepetic (misha@project
 
 <br />
 
+## <u>sample-code</u>
+ <br />
+Description: Sample code intended as an introduction to downloading and loading the data and using it to train a model
+<br />
+<br />
+
+Requirements:
+
+* Access to the Project Canopy S3 storage
+
+<br />
+
+Assets:
+
+* <b>DRC_labels_SAB_train/val/test_v1.csv</b>: Copies of the CSV file used to train and test the final SAB model
+* <b>DRC_labels_SAB_train/val_sample.csv</b>: A 10% sample of the train and test CSV files; use this if you don't have storage/computing power to use the full dataset
+
+<br />
+
+Notebooks:
+
+* <b>sample_notebook</b> - A notebook with basic code used to download training data, load it, and use it to train a basic model
+
+<br />
+
+Scripts:
+
+* <b>dataloader.py</b> - Code for loading training chips
+* <b>sample_model.py</b> - An extremely bare-bones model, intended purely for introductory purposes
+
+<br />
+
 ## <u>s2cloudless</u>
  <br />
 Description: Downloading cloudfree imagery from Google Earth Engine using the S2Cloudless algorithm
@@ -24,6 +56,8 @@ Requirements:
 
 * Registered a Google Earth Engine account
 * Linked that account to a Google Cloud Services account
+
+<br />
 
 Assets:
 
